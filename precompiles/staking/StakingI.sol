@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity >=0.8.17;
 
-import "../common/Authorization.sol" as authorization;
+import "../authorization/AuthorizationI.sol" as authorization;
 import "../common/Types.sol";
-
 
 /// @dev The StakingI contract's address.
 address constant STAKING_PRECOMPILE_ADDRESS = 0x0000000000000000000000000000000000000800;
@@ -12,10 +11,21 @@ address constant STAKING_PRECOMPILE_ADDRESS = 0x00000000000000000000000000000000
 StakingI constant STAKING_CONTRACT = StakingI(STAKING_PRECOMPILE_ADDRESS);
 
 /// @dev Define all the available staking methods.
+string constant MSG_CREATE_VALIDATOR = "/cosmos.staking.v1beta1.MsgCreateValidator";
 string constant MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
 string constant MSG_UNDELEGATE = "/cosmos.staking.v1beta1.MsgUndelegate";
 string constant MSG_REDELEGATE = "/cosmos.staking.v1beta1.MsgBeginRedelegate";
 string constant MSG_CANCEL_UNDELEGATION = "/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation";
+
+/// @dev Defines the initial description to be used for creating
+/// a validator.
+struct Description {
+    string moniker;
+    string identity;
+    string website;
+    string securityContact;
+    string details;
+}
 
 /// @dev Defines the initial commission rates to be used for creating
 /// a validator.
@@ -34,7 +44,7 @@ struct Commission {
 
 /// @dev Represents a validator in the staking module.
 struct Validator {
-    string operatorAddress;
+    address operatorAddress;
     string consensusPubkey;
     bool jailed;
     BondStatus status;
@@ -47,11 +57,13 @@ struct Validator {
     uint256 minSelfDelegation;
 }
 
+/// @dev Represents the output of a Redelegations query.
 struct RedelegationResponse {
     Redelegation redelegation;
     RedelegationEntryResponse[] entries;
 }
 
+/// @dev Represents a redelegation between a delegator and a validator.
 struct Redelegation {
     string delegatorAddress;
     string validatorSrcAddress;
@@ -59,11 +71,13 @@ struct Redelegation {
     RedelegationEntry[] entries;
 }
 
+/// @dev Represents a RedelegationEntryResponse for the Redelegations query.
 struct RedelegationEntryResponse {
     RedelegationEntry redelegationEntry;
     uint256 balance;
 }
 
+/// @dev Represents a single Redelegation entry.
 struct RedelegationEntry {
     int64 creationHeight;
     int64 completionTime;
@@ -71,11 +85,29 @@ struct RedelegationEntry {
     uint256 sharesDst; // TODO: decimal
 }
 
+/// @dev Represents the output of the Redelegation query.
+struct RedelegationOutput {
+    string delegatorAddress;
+    string validatorSrcAddress;
+    string validatorDstAddress;
+    RedelegationEntry[] entries;
+}
+
+/// @dev Represents a single entry of an unbonding delegation.
 struct UnbondingDelegationEntry {
     int64 creationHeight;
     int64 completionTime;
     uint256 initialBalance;
     uint256 balance;
+    uint64 unbondingId;
+    int64 unbondingOnHoldRefCount;
+}
+
+/// @dev Represents the output of the UnbondingDelegation query.
+struct UnbondingDelegationOutput {
+    string delegatorAddress;
+    string validatorAddress;
+    UnbondingDelegationEntry[] entries;
 }
 
 /// @dev The status of the validator.
@@ -93,6 +125,25 @@ enum BondStatus {
 /// wraps the pallet.
 /// @custom:address 0x0000000000000000000000000000000000000800
 interface StakingI is authorization.AuthorizationI {
+    /// @dev Defines a method for creating a new validator.
+    /// @param description The initial description
+    /// @param commissionRates The initial commissionRates
+    /// @param minSelfDelegation The validator's self declared minimum self delegation
+    /// @param delegatorAddress The delegator address
+    /// @param validatorAddress The validator address
+    /// @param pubkey The consensus public key of the validator
+    /// @param value The amount of the coin to be self delegated to the validator
+    /// @return success Whether or not the create validator was successful
+    function createValidator(
+        Description calldata description,
+        CommissionRates calldata commissionRates,
+        uint256 minSelfDelegation,
+        address delegatorAddress,
+        string memory validatorAddress,
+        string memory pubkey,
+        uint256 value
+    ) external returns (bool success);
+
     /// @dev Defines a method for performing a delegation of coins from a delegator to a validator.
     /// @param delegatorAddress The address of the delegator
     /// @param validatorAddress The address of the validator
@@ -157,11 +208,11 @@ interface StakingI is authorization.AuthorizationI {
     /// unbonding for a given delegator and validator pair.
     /// @param delegatorAddress The address of the delegator.
     /// @param validatorAddress The address of the validator.
-    /// @return entries The delegations that are currently unbonding.
+    /// @return unbondingDelegation The delegations that are currently unbonding.
     function unbondingDelegation(
         address delegatorAddress,
         string memory validatorAddress
-    ) external view returns (UnbondingDelegationEntry[] calldata entries);
+    ) external view returns (UnbondingDelegationOutput calldata unbondingDelegation);
 
     /// @dev Queries validator info for a given validator address.
     /// @param validatorAddress The address of the validator.
@@ -177,23 +228,23 @@ interface StakingI is authorization.AuthorizationI {
         string memory status,
         PageRequest calldata pageRequest
     )
-    external
-    view
-    returns (
-        Validator[] calldata validators,
-        PageResponse calldata pageResponse
-    );
+        external
+        view
+        returns (
+            Validator[] calldata validators,
+            PageResponse calldata pageResponse
+        );
 
     /// @dev Queries all redelegations from a source to a destination validator for a given delegator.
     /// @param delegatorAddress The address of the delegator.
     /// @param srcValidatorAddress Defines the validator address to redelegate from.
     /// @param dstValidatorAddress Defines the validator address to redelegate to.
-    /// @return entries The active redelegations for the given delegator, source and destination validator combination.
+    /// @return redelegation The active redelegations for the given delegator, source and destination validator combination.
     function redelegation(
         address delegatorAddress,
         string memory srcValidatorAddress,
         string memory dstValidatorAddress
-    ) external view returns (RedelegationEntry[] calldata entries);
+    ) external view returns (RedelegationOutput calldata redelegation);
 
     /// @dev Queries all redelegations based on the specified criteria:
     /// for a given delegator and/or origin validator address
@@ -210,11 +261,21 @@ interface StakingI is authorization.AuthorizationI {
         string memory dstValidatorAddress,
         PageRequest calldata pageRequest
     )
-    external
-    view
-    returns (
-        RedelegationResponse[] calldata response,
-        PageResponse calldata pageResponse
+        external
+        view
+        returns (
+            RedelegationResponse[] calldata response,
+            PageResponse calldata pageResponse
+        );
+
+    /// @dev CreateValidator defines an Event emitted when a create a new validator.
+    /// @param delegatorAddress The address of the delegator
+    /// @param validatorAddress The address of the validator
+    /// @param value The amount of coin being self delegated
+    event CreateValidator(
+        address indexed delegatorAddress,
+        address indexed validatorAddress,
+        uint256 value
     );
 
     /// @dev Delegate defines an Event emitted when a given amount of tokens are delegated from the
@@ -225,7 +286,7 @@ interface StakingI is authorization.AuthorizationI {
     /// @param newShares The new delegation shares being held
     event Delegate(
         address indexed delegatorAddress,
-        string indexed validatorAddress,
+        address indexed validatorAddress,
         uint256 amount,
         uint256 newShares
     );
@@ -238,7 +299,7 @@ interface StakingI is authorization.AuthorizationI {
     /// @param completionTime The time at which the unbonding is completed
     event Unbond(
         address indexed delegatorAddress,
-        string indexed validatorAddress,
+        address indexed validatorAddress,
         uint256 amount,
         uint256 completionTime
     );
@@ -252,8 +313,8 @@ interface StakingI is authorization.AuthorizationI {
     /// @param completionTime The time at which the redelegation is completed
     event Redelegate(
         address indexed delegatorAddress,
-        string indexed validatorSrcAddress,
-        string indexed validatorDstAddress,
+        address indexed validatorSrcAddress,
+        address indexed validatorDstAddress,
         uint256 amount,
         uint256 completionTime
     );
@@ -266,7 +327,7 @@ interface StakingI is authorization.AuthorizationI {
     /// @param creationHeight The block height at which the unbonding of a delegation was initiated
     event CancelUnbondingDelegation(
         address indexed delegatorAddress,
-        string indexed validatorAddress,
+        address indexed validatorAddress,
         uint256 amount,
         uint256 creationHeight
     );

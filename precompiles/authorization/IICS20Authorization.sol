@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity >=0.8.17;
 
-import "Types.sol";
+import "../common/Types.sol";
 
 /// @author Evmos Team
 /// @title Authorization Interface
@@ -19,7 +19,7 @@ interface IICS20Authorization {
 
     /// @dev Approves IBC transfer with a specific amount of tokens.
     /// @param grantee The address for which the transfer authorization is granted.
-    /// @param allocations An array of ICS20Allocation for the authorization.
+    /// @param allocations An array of Allocation for the authorization.
     function approve(address grantee, ICS20Allocation[] calldata allocations) external returns (bool approved);
 
     /// @dev Revokes IBC transfer authorization for a specific grantee.

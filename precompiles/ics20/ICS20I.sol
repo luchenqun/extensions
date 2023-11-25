@@ -2,7 +2,7 @@
 pragma solidity >=0.8.18;
 
 import "../common/Types.sol";
-import "../common/IICS20Authorization.sol";
+import "../authorization/IICS20Authorization.sol";
 
 /// @dev The ICS20I contract's address.
 address constant ICS20_PRECOMPILE_ADDRESS = 0x0000000000000000000000000000000000000802;
@@ -71,12 +71,12 @@ interface ICS20I is IICS20Authorization {
     function denomTraces(
         PageRequest memory pageRequest
     )
-    external
-    view
-    returns (
-        DenomTrace[] memory denomTraces,
-        PageResponse memory pageResponse
-    );
+        external
+        view
+        returns (
+            DenomTrace[] memory denomTraces,
+            PageResponse memory pageResponse
+        );
 
     /// @dev DenomTrace defines a method for returning a denom trace.
     function denomTrace(

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-v3
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity >=0.8.17;
 
 /// @dev The Bech32I contract's address.
@@ -8,7 +8,7 @@ address constant Bech32_PRECOMPILE_ADDRESS = 0x000000000000000000000000000000000
 /// @title Bech32 Precompiled Contract
 /// @dev The interface through which solidity contracts can convert addresses from
 /// hex to bech32 and vice versa.
-/// @custom:address 0x0000000000000000000000000000000000000010
+/// @custom:address 0x0000000000000000000000000000000000000400
 interface Bech32I {
     /// @dev Defines a method for converting a hex formatted address to bech32.
     /// @param addr The hex address to be converted.
